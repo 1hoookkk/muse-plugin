@@ -18,9 +18,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         inspector->setVisible (true);
     };
 
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize (400, 300);
+    // M1: Set window size to 400×600px (fixed, as per UI spec)
+    // UI controls will be added in M5
+    setSize (400, 600);
+    setResizable (false, false);
 }
 
 PluginEditor::~PluginEditor()
@@ -29,20 +30,27 @@ PluginEditor::~PluginEditor()
 
 void PluginEditor::paint (juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    // M1: Black chassis background (per UI spec)
+    // Proper chassis color and textures will be added in M5
+    g.fillAll (juce::Colours::black);
 
-    auto area = getLocalBounds();
+    // M1: Temporary title for testing
     g.setColour (juce::Colours::white);
-    g.setFont (16.0f);
-    auto helloWorld = juce::String ("Hello from ") + PRODUCT_NAME_WITHOUT_VERSION + " v" VERSION + " running in " + CMAKE_BUILD_TYPE;
-    g.drawText (helloWorld, area.removeFromTop (150), juce::Justification::centred, false);
+    g.setFont (24.0f);
+    g.drawText ("MUSE", getLocalBounds().removeFromTop (80), juce::Justification::centred, false);
+
+    g.setFont (12.0f);
+    g.setColour (juce::Colours::lightgrey);
+    auto infoArea = getLocalBounds().reduced (20);
+    g.drawText ("M1: Scaffold - Parameters defined",
+                infoArea.removeFromTop (120).removeFromBottom (20),
+                juce::Justification::centred, false);
 }
 
 void PluginEditor::resized()
 {
-    // layout the positions of your child components here
+    // M1: Simple layout for inspector button
+    // Full UI layout will be implemented in M5
     auto area = getLocalBounds();
-    area.removeFromBottom(50);
-    inspectButton.setBounds (getLocalBounds().withSizeKeepingCentre(100, 50));
+    inspectButton.setBounds (area.removeFromBottom (60).reduced (150, 10));
 }

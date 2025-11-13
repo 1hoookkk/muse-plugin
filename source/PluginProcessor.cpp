@@ -3,19 +3,67 @@
 
 //==============================================================================
 PluginProcessor::PluginProcessor()
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+    : AudioProcessor (BusesProperties()
+                    #if ! JucePlugin_IsMidiEffect
+                     #if ! JucePlugin_IsSynth
+                      .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                      .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                    #endif
+                      ),
+      apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
 }
 
 PluginProcessor::~PluginProcessor()
 {
+}
+
+//==============================================================================
+juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    // MORPH (0.0 - 1.0, default 0.5, smoothed)
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "morph", 1 },
+        "Morph",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    // INTENSITY (0.0 - 1.0, default 0.5, smoothed)
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "intensity", 1 },
+        "Intensity",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    // MIX (0.0 - 1.0, default 0.5, smoothed)
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "mix", 1 },
+        "Mix",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    // PAIR (0 - 3, default 0, discrete)
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "pair", 1 },
+        "Pair",
+        0, 3, 0));
+
+    // AUTO (boolean, default false) - Actually used for FREEZE in UI
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "auto", 1 },
+        "Freeze",
+        false));
+
+    // DANGER (boolean, default false)
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "danger", 1 },
+        "Danger",
+        false));
+
+    return layout;
 }
 
 //==============================================================================
@@ -137,24 +185,15 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
-    }
+    // M1: Passthrough audio (no processing yet)
+    // DSP will be added in M2+
+    // All parameters are defined and automatable, but not yet used for processing
 }
 
 //==============================================================================
 bool PluginProcessor::hasEditor() const
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    return true;
 }
 
 juce::AudioProcessorEditor* PluginProcessor::createEditor()
@@ -165,17 +204,21 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 //==============================================================================
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    // Save parameters using APVTS
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, destData);
 }
 
 void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    // Restore parameters using APVTS
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+
+    if (xmlState != nullptr && xmlState->hasTagName (apvts.state.getType()))
+    {
+        apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+    }
 }
 
 //==============================================================================

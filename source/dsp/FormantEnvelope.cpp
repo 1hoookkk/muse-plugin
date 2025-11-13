@@ -110,16 +110,78 @@ VowelShape FormantEnvelope::getVowelOO()
     };
 }
 
+VowelShape FormantEnvelope::getVowelForPair(int pair, float morph)
+{
+    // Clamp morph to [0, 1]
+    morph = std::max(0.0f, std::min(1.0f, morph));
+
+    switch (pair)
+    {
+        case 0:  // VOWEL: AA → AH → EE (3-stage)
+        {
+            if (morph < 0.5f)
+            {
+                // First half: AA → AH
+                float t = morph * 2.0f;  // Remap [0, 0.5] to [0, 1]
+                return morphVowels(getVowelAA(), getVowelAH(), t);
+            }
+            else
+            {
+                // Second half: AH → EE
+                float t = (morph - 0.5f) * 2.0f;  // Remap [0.5, 1] to [0, 1]
+                return morphVowels(getVowelAH(), getVowelEE(), t);
+            }
+        }
+
+        case 1:  // BELL: OH → OO (2-stage)
+            return morphVowels(getVowelOH(), getVowelOO(), morph);
+
+        case 2:  // LOW: AA → OO (2-stage)
+            return morphVowels(getVowelAA(), getVowelOO(), morph);
+
+        case 3:  // SUB: AH (static, morph ignored)
+        default:
+            return getVowelAH();
+    }
+}
+
+VowelShape FormantEnvelope::morphVowels(const VowelShape& vowel1, const VowelShape& vowel2, float morph)
+{
+    // Clamp morph to [0, 1]
+    morph = std::max(0.0f, std::min(1.0f, morph));
+
+    VowelShape result;
+
+    // Linearly interpolate formant frequencies and bandwidths
+    result.f1.frequency = vowel1.f1.frequency * (1.0f - morph) + vowel2.f1.frequency * morph;
+    result.f1.bandwidth = vowel1.f1.bandwidth * (1.0f - morph) + vowel2.f1.bandwidth * morph;
+    result.f1.gain = vowel1.f1.gain * (1.0f - morph) + vowel2.f1.gain * morph;
+
+    result.f2.frequency = vowel1.f2.frequency * (1.0f - morph) + vowel2.f2.frequency * morph;
+    result.f2.bandwidth = vowel1.f2.bandwidth * (1.0f - morph) + vowel2.f2.bandwidth * morph;
+    result.f2.gain = vowel1.f2.gain * (1.0f - morph) + vowel2.f2.gain * morph;
+
+    result.f3.frequency = vowel1.f3.frequency * (1.0f - morph) + vowel2.f3.frequency * morph;
+    result.f3.bandwidth = vowel1.f3.bandwidth * (1.0f - morph) + vowel2.f3.bandwidth * morph;
+    result.f3.gain = vowel1.f3.gain * (1.0f - morph) + vowel2.f3.gain * morph;
+
+    result.name = "Morphed";
+
+    return result;
+}
+
 float FormantEnvelope::intensityToBandwidthScale(float intensity)
 {
-    // M2: Fixed at intensity = 0.5 → scale = 1.0
-    // M3 will implement full mapping:
-    // intensity 0.0 → scale 2.0 (wide peaks)
-    // intensity 0.5 → scale 1.0 (nominal)
-    // intensity 1.0 → scale 0.5 (narrow peaks)
+    // M3: Full intensity mapping
+    // intensity 0.0 → scale 2.5 (very wide peaks, subtle shaping)
+    // intensity 0.5 → scale 1.0 (nominal bandwidth)
+    // intensity 1.0 → scale 0.4 (very narrow, aggressive shaping)
 
-    // Linear interpolation for now
-    return 2.0f - intensity * 1.5f;
+    // Linear interpolation
+    float scale = 2.5f - intensity * 2.1f;
+
+    // Clamp to safe range
+    return std::max(0.4f, std::min(2.5f, scale));
 }
 
 float FormantEnvelope::gaussianPeak(float f, const Formant& formant, float bandwidthScale)

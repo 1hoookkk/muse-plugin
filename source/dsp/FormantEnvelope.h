@@ -62,6 +62,24 @@ public:
     static VowelShape getVowelOH();
     static VowelShape getVowelOO();
 
+    /**
+     * Get vowel shape for a given pair and morph position (M3)
+     * Handles multi-stage morphing (3-stage for VOWEL, 2-stage for others)
+     * @param pair Pair index (0=VOWEL, 1=BELL, 2=LOW, 3=SUB)
+     * @param morph Morph position [0.0, 1.0]
+     * @return Interpolated vowel shape
+     */
+    static VowelShape getVowelForPair(int pair, float morph);
+
+    /**
+     * Linearly interpolate between two vowel shapes
+     * @param vowel1 First vowel
+     * @param vowel2 Second vowel
+     * @param morph Interpolation factor [0.0, 1.0]
+     * @return Interpolated vowel shape
+     */
+    static VowelShape morphVowels(const VowelShape& vowel1, const VowelShape& vowel2, float morph);
+
 private:
     /**
      * Convert intensity (0-1) to bandwidth scale factor

@@ -62,8 +62,10 @@ private:
     std::vector<float> tempInputBuffer;
     std::vector<float> tempOutputBuffer;
 
-    // Parameter smoothing (for mix)
+    // Parameter smoothing (M3: add morph, intensity)
     float mixSmoothed = 0.5f;
+    float morphSmoothed = 0.5f;
+    float intensitySmoothed = 0.5f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

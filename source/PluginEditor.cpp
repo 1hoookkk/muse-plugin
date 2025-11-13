@@ -42,7 +42,7 @@ void PluginEditor::paint (juce::Graphics& g)
     g.setFont (12.0f);
     g.setColour (juce::Colours::lightgrey);
     auto infoArea = getLocalBounds().reduced (20);
-    g.drawText ("M2: STFT Freeze + AA Vowel Envelope",
+    g.drawText ("M3: Full Parameter Control - Morph/Intensity/Pairs",
                 infoArea.removeFromTop (120).removeFromBottom (20),
                 juce::Justification::centred, false);
 }

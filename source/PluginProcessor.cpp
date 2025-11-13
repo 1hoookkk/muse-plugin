@@ -148,8 +148,10 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     tempInputBuffer.resize(samplesPerBlock, 0.0f);
     tempOutputBuffer.resize(samplesPerBlock, 0.0f);
 
-    // Initialize parameter smoothing
+    // Initialize parameter smoothing (M3: add morph, intensity)
     mixSmoothed = apvts.getRawParameterValue("mix")->load();
+    morphSmoothed = apvts.getRawParameterValue("morph")->load();
+    intensitySmoothed = apvts.getRawParameterValue("intensity")->load();
 }
 
 void PluginProcessor::releaseResources()
@@ -196,21 +198,26 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, numSamples);
 
-    // M2: STFT-based spectral freeze + envelope shaping
+    // M2/M3: STFT-based spectral freeze + envelope shaping with full parameter control
 
     // Read parameters (atomic, lock-free)
     float mix = apvts.getRawParameterValue("mix")->load();
     bool freeze = apvts.getRawParameterValue("auto")->load() > 0.5f;
+    float morph = apvts.getRawParameterValue("morph")->load();
     float intensity = apvts.getRawParameterValue("intensity")->load();
+    int pair = static_cast<int>(apvts.getRawParameterValue("pair")->load());
 
-    // Smooth mix parameter (20ms smoothing)
-    const float mixSmoothCoeff = 0.95f;
-    mixSmoothed = mixSmoothed * mixSmoothCoeff + mix * (1.0f - mixSmoothCoeff);
+    // Smooth continuous parameters (20ms smoothing, ~0.95 coefficient)
+    const float smoothCoeff = 0.95f;
+    mixSmoothed = mixSmoothed * smoothCoeff + mix * (1.0f - smoothCoeff);
+    morphSmoothed = morphSmoothed * smoothCoeff + morph * (1.0f - smoothCoeff);
+    intensitySmoothed = intensitySmoothed * smoothCoeff + intensity * (1.0f - smoothCoeff);
 
-    // Generate formant envelope (M2: hardcoded AA vowel at intensity=0.5)
-    // M3 will add morph/pair parameter support
-    VowelShape aaVowel = FormantEnvelope::getAAVowel();
-    formantEnvelope.generateEnvelope(envelopeBuffer, aaVowel, 0.5f,
+    // M3: Get vowel shape for current pair and morph position
+    VowelShape vowel = FormantEnvelope::getVowelForPair(pair, morphSmoothed);
+
+    // Generate formant envelope with actual intensity
+    formantEnvelope.generateEnvelope(envelopeBuffer, vowel, intensitySmoothed,
                                      getSampleRate(), STFTProcessor::FFT_SIZE);
 
     // Process each channel independently (stereo-linked DSP, but separate buffers)

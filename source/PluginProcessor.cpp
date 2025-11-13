@@ -101,7 +101,8 @@ bool PluginProcessor::isMidiEffect() const
 
 double PluginProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    // M2: Report STFT latency for DAW compensation
+    return stftProcessor.getLatencySamples() / getSampleRate();
 }
 
 int PluginProcessor::getNumPrograms()
@@ -134,15 +135,28 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 //==============================================================================
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    // M2: Initialize STFT-based spectral freeze processor
+    stftProcessor.prepare(sampleRate, samplesPerBlock);
+
+    // Initialize freeze capture
+    const int numBins = stftProcessor.getNumBins();
+    freezeCapture.prepare(numBins, sampleRate, STFTProcessor::HOP_SIZE);
+
+    // Allocate working buffers (RT-safe after this)
+    workingMagnitudes.resize(numBins, 0.0f);
+    envelopeBuffer.resize(numBins, 0.0f);
+    tempInputBuffer.resize(samplesPerBlock, 0.0f);
+    tempOutputBuffer.resize(samplesPerBlock, 0.0f);
+
+    // Initialize parameter smoothing
+    mixSmoothed = apvts.getRawParameterValue("mix")->load();
 }
 
 void PluginProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
+    // Reset DSP state
+    stftProcessor.reset();
+    freezeCapture.reset();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -176,18 +190,79 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    const int numSamples = buffer.getNumSamples();
 
-    // M1: Passthrough audio (no processing yet)
-    // DSP will be added in M2+
-    // All parameters are defined and automatable, but not yet used for processing
+    // Clear extra output channels
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        buffer.clear (i, 0, numSamples);
+
+    // M2: STFT-based spectral freeze + envelope shaping
+
+    // Read parameters (atomic, lock-free)
+    float mix = apvts.getRawParameterValue("mix")->load();
+    bool freeze = apvts.getRawParameterValue("auto")->load() > 0.5f;
+    float intensity = apvts.getRawParameterValue("intensity")->load();
+
+    // Smooth mix parameter (20ms smoothing)
+    const float mixSmoothCoeff = 0.95f;
+    mixSmoothed = mixSmoothed * mixSmoothCoeff + mix * (1.0f - mixSmoothCoeff);
+
+    // Generate formant envelope (M2: hardcoded AA vowel at intensity=0.5)
+    // M3 will add morph/pair parameter support
+    VowelShape aaVowel = FormantEnvelope::getAAVowel();
+    formantEnvelope.generateEnvelope(envelopeBuffer, aaVowel, 0.5f,
+                                     getSampleRate(), STFTProcessor::FFT_SIZE);
+
+    // Process each channel independently (stereo-linked DSP, but separate buffers)
+    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    {
+        auto* channelData = buffer.getWritePointer(channel);
+
+        // Input sanitization
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (std::isnan(channelData[i]) || std::isinf(channelData[i]))
+                channelData[i] = 0.0f;
+        }
+
+        // Copy input for dry signal
+        std::copy(channelData, channelData + numSamples, tempInputBuffer.begin());
+
+        // STFT processing with spectral callback
+        stftProcessor.processBlock(
+            channelData,
+            tempOutputBuffer.data(),
+            numSamples,
+            [this, freeze](float* magnitudes, float* phases, int numBins) {
+                // Freeze capture (captures/holds/crossfades spectrum)
+                freezeCapture.processSpectrum(magnitudes, workingMagnitudes.data(),
+                                             numBins, freeze);
+
+                // Apply formant envelope
+                for (int i = 0; i < numBins; ++i)
+                {
+                    magnitudes[i] = workingMagnitudes[i] * envelopeBuffer[i];
+
+                    // Sanitize output
+                    if (std::isnan(magnitudes[i]) || std::isinf(magnitudes[i]))
+                        magnitudes[i] = 0.0f;
+                }
+            }
+        );
+
+        // Mix dry/wet with equal-power crossfade
+        float wetGain = std::sin(mixSmoothed * juce::MathConstants<float>::halfPi);
+        float dryGain = std::cos(mixSmoothed * juce::MathConstants<float>::halfPi);
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            channelData[i] = tempInputBuffer[i] * dryGain + tempOutputBuffer[i] * wetGain;
+
+            // Final sanitization
+            if (std::isnan(channelData[i]) || std::isinf(channelData[i]))
+                channelData[i] = 0.0f;
+        }
+    }
 }
 
 //==============================================================================

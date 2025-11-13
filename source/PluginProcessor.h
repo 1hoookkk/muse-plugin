@@ -1,6 +1,9 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "dsp/STFTProcessor.h"
+#include "dsp/FormantEnvelope.h"
+#include "dsp/FreezeCapture.h"
 
 #if (MSVC)
 #include "ipps.h"
@@ -47,6 +50,20 @@ private:
 
     // Parameters (APVTS manages automation and state)
     juce::AudioProcessorValueTreeState apvts;
+
+    // DSP Components (M2: STFT freeze + envelope shaping)
+    STFTProcessor stftProcessor;
+    FormantEnvelope formantEnvelope;
+    FreezeCapture freezeCapture;
+
+    // Working buffers (preallocated, RT-safe)
+    std::vector<float> workingMagnitudes;
+    std::vector<float> envelopeBuffer;
+    std::vector<float> tempInputBuffer;
+    std::vector<float> tempOutputBuffer;
+
+    // Parameter smoothing (for mix)
+    float mixSmoothed = 0.5f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

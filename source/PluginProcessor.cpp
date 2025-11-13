@@ -142,6 +142,10 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     const int numBins = stftProcessor.getNumBins();
     freezeCapture.prepare(numBins, sampleRate, STFTProcessor::HOP_SIZE);
 
+    // M4: Initialize RMS trackers
+    inputRMSTracker.prepare(sampleRate, STFTProcessor::HOP_SIZE);
+    outputRMSTracker.prepare(sampleRate, STFTProcessor::HOP_SIZE);
+
     // Allocate working buffers (RT-safe after this)
     workingMagnitudes.resize(numBins, 0.0f);
     envelopeBuffer.resize(numBins, 0.0f);
@@ -152,6 +156,10 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     mixSmoothed = apvts.getRawParameterValue("mix")->load();
     morphSmoothed = apvts.getRawParameterValue("morph")->load();
     intensitySmoothed = apvts.getRawParameterValue("intensity")->load();
+
+    // M4: Initialize adaptive gain
+    adaptiveGain = 1.0f;
+    adaptiveGainSmoothed = 1.0f;
 }
 
 void PluginProcessor::releaseResources()
@@ -159,6 +167,8 @@ void PluginProcessor::releaseResources()
     // Reset DSP state
     stftProcessor.reset();
     freezeCapture.reset();
+    inputRMSTracker.reset();
+    outputRMSTracker.reset();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -198,7 +208,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, numSamples);
 
-    // M2/M3: STFT-based spectral freeze + envelope shaping with full parameter control
+    // M2/M3/M4: STFT freeze + envelope shaping + adaptive gain
 
     // Read parameters (atomic, lock-free)
     float mix = apvts.getRawParameterValue("mix")->load();
@@ -206,6 +216,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     float morph = apvts.getRawParameterValue("morph")->load();
     float intensity = apvts.getRawParameterValue("intensity")->load();
     int pair = static_cast<int>(apvts.getRawParameterValue("pair")->load());
+    bool danger = apvts.getRawParameterValue("danger")->load() > 0.5f;
 
     // Smooth continuous parameters (20ms smoothing, ~0.95 coefficient)
     const float smoothCoeff = 0.95f;
@@ -219,6 +230,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Generate formant envelope with actual intensity
     formantEnvelope.generateEnvelope(envelopeBuffer, vowel, intensitySmoothed,
                                      getSampleRate(), STFTProcessor::FFT_SIZE);
+
+    // M4: Track input RMS (measure before processing)
+    float inputRMS = 0.0f;
+    if (totalNumInputChannels > 0)
+    {
+        inputRMS = inputRMSTracker.computeRMS(buffer.getReadPointer(0), numSamples);
+    }
 
     // Process each channel independently (stereo-linked DSP, but separate buffers)
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
@@ -256,6 +274,52 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 }
             }
         );
+
+        // M4: Measure wet output RMS and apply adaptive gain
+        float wetRMS = outputRMSTracker.computeRMS(tempOutputBuffer.data(), numSamples);
+
+        // Calculate adaptive gain (once per block, not per channel)
+        if (channel == 0)
+        {
+            if (danger)
+            {
+                // Danger mode: Fixed +3 dB boost (sqrt(2) ≈ 1.414)
+                adaptiveGain = 1.41421356f;
+            }
+            else
+            {
+                // Normal mode: Adaptive gain to match input RMS
+                if (wetRMS > 0.001f)  // Avoid division by zero
+                {
+                    adaptiveGain = inputRMS / wetRMS;
+
+                    // Clamp to reasonable range (prevent extreme corrections)
+                    adaptiveGain = std::max(0.1f, std::min(10.0f, adaptiveGain));
+                }
+                else
+                {
+                    adaptiveGain = 1.0f;  // No signal, unity gain
+                }
+            }
+
+            // Smooth adaptive gain (prevent pumping artifacts)
+            const float gainSmoothCoeff = 0.98f;  // ~100-200ms
+            adaptiveGainSmoothed = adaptiveGainSmoothed * gainSmoothCoeff +
+                                  adaptiveGain * (1.0f - gainSmoothCoeff);
+
+            // Write RMS level to atomic for UI feedback
+            rmsLevelForUI.store(wetRMS, std::memory_order_relaxed);
+        }
+
+        // Apply adaptive gain to wet signal BEFORE mixing
+        for (int i = 0; i < numSamples; ++i)
+        {
+            tempOutputBuffer[i] *= adaptiveGainSmoothed;
+
+            // Sanitize after gain
+            if (std::isnan(tempOutputBuffer[i]) || std::isinf(tempOutputBuffer[i]))
+                tempOutputBuffer[i] = 0.0f;
+        }
 
         // Mix dry/wet with equal-power crossfade
         float wetGain = std::sin(mixSmoothed * juce::MathConstants<float>::halfPi);

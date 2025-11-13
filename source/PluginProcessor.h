@@ -1,9 +1,11 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <atomic>
 #include "dsp/STFTProcessor.h"
 #include "dsp/FormantEnvelope.h"
 #include "dsp/FreezeCapture.h"
+#include "dsp/RMSTracker.h"
 
 #if (MSVC)
 #include "ipps.h"
@@ -44,6 +46,9 @@ public:
     // Parameter access
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
 
+    // UI feedback (M4: RMS level for LED status)
+    float getCurrentRMSLevel() const { return rmsLevelForUI.load(std::memory_order_relaxed); }
+
 private:
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -56,6 +61,10 @@ private:
     FormantEnvelope formantEnvelope;
     FreezeCapture freezeCapture;
 
+    // M4: RMS tracking for adaptive gain
+    RMSTracker inputRMSTracker;
+    RMSTracker outputRMSTracker;
+
     // Working buffers (preallocated, RT-safe)
     std::vector<float> workingMagnitudes;
     std::vector<float> envelopeBuffer;
@@ -66,6 +75,13 @@ private:
     float mixSmoothed = 0.5f;
     float morphSmoothed = 0.5f;
     float intensitySmoothed = 0.5f;
+
+    // M4: Adaptive gain state
+    float adaptiveGain = 1.0f;
+    float adaptiveGainSmoothed = 1.0f;
+
+    // M4: RMS level for UI (atomic communication)
+    std::atomic<float> rmsLevelForUI { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

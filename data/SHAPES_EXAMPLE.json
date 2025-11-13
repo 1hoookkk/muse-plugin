@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Synthetic vowel formant shapes (example format, not EMU-authentic)",
+  "format_version": "1.0",
+  "sample_rate": 48000,
+  "vowels": {
+    "AA": {
+      "name": "AA (cat)",
+      "formants": [
+        {
+          "frequency_hz": 700,
+          "bandwidth_hz": 90,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 1220,
+          "bandwidth_hz": 110,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 2600,
+          "bandwidth_hz": 170,
+          "gain_db": 0.0
+        }
+      ]
+    },
+    "AH": {
+      "name": "AH (father)",
+      "formants": [
+        {
+          "frequency_hz": 730,
+          "bandwidth_hz": 90,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 1090,
+          "bandwidth_hz": 110,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 2440,
+          "bandwidth_hz": 170,
+          "gain_db": 0.0
+        }
+      ]
+    },
+    "EE": {
+      "name": "EE (beet)",
+      "formants": [
+        {
+          "frequency_hz": 270,
+          "bandwidth_hz": 90,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 2290,
+          "bandwidth_hz": 110,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 3010,
+          "bandwidth_hz": 170,
+          "gain_db": 0.0
+        }
+      ]
+    },
+    "OH": {
+      "name": "OH (boat)",
+      "formants": [
+        {
+          "frequency_hz": 570,
+          "bandwidth_hz": 90,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 840,
+          "bandwidth_hz": 110,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 2410,
+          "bandwidth_hz": 170,
+          "gain_db": 0.0
+        }
+      ]
+    },
+    "OO": {
+      "name": "OO (boot)",
+      "formants": [
+        {
+          "frequency_hz": 300,
+          "bandwidth_hz": 90,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 870,
+          "bandwidth_hz": 110,
+          "gain_db": 0.0
+        },
+        {
+          "frequency_hz": 2240,
+          "bandwidth_hz": 170,
+          "gain_db": 0.0
+        }
+      ]
+    }
+  },
+  "notes": {
+    "usage": "Convert formants to filter poles using: r = 1 - (π·BW/Fs), θ = 2π·f/Fs",
+    "poles": "Each formant becomes a conjugate pole pair (6 poles total per vowel)",
+    "intensity_mapping": "Scale pole radius: r' = 0.85 + intensity × (r - 0.85)",
+    "morphing": "Linearly interpolate frequency and bandwidth between vowels",
+    "source": "Formant values from Peterson & Barney (1952) - male speaker averages",
+    "authenticity": "This is a SYNTHETIC example. NOT EMU-authentic pole data."
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "muse": {
+    "colors": {
+      "chassis": {
+        "moss": "#2F4F4F",
+        "description": "Dark teal chassis background (powder-coat)"
+      },
+      "lcd": {
+        "background": "#F1F4F5",
+        "description": "Light cool grey LCD panel"
+      },
+      "oled": {
+        "mint": "#D8F3DC",
+        "description": "Mint green for text, indicators, knob markers"
+      },
+      "knob": {
+        "gradient_light": "#325555",
+        "gradient_dark": "#2c4949",
+        "inset_light": "#385f5f",
+        "inset_dark": "#263e3e",
+        "description": "Beveled knob bezel colors"
+      },
+      "mouth": {
+        "dot_color": "#3B4A52",
+        "description": "Dark steel grey dots on light LCD"
+      },
+      "led": {
+        "flow": "#42D697",
+        "struggle": "#E8BF3D",
+        "meltdown": "#DB3F3F",
+        "description": "Status LED colors (green, amber, red)"
+      },
+      "button": {
+        "auto_on": "#42D697",
+        "danger_on": "#DB3F3F",
+        "description": "Button active states"
+      }
+    },
+    "fonts": {
+      "title": {
+        "family": "sans-serif",
+        "size_px": 16,
+        "weight": "bold",
+        "letter_spacing": "0.25em",
+        "description": "MUSE title at top"
+      },
+      "label": {
+        "family": "sans-serif",
+        "size_px": 14,
+        "weight": "semibold",
+        "letter_spacing": "0.2em",
+        "description": "Knob labels (MORPH, INTENSITY, MIX)"
+      },
+      "value": {
+        "family": "monospace",
+        "size_px": 12,
+        "weight": "normal",
+        "description": "Knob value readouts"
+      },
+      "status": {
+        "family": "sans-serif",
+        "size_px": 11,
+        "weight": "bold",
+        "description": "LED status label"
+      },
+      "serial": {
+        "family": "monospace",
+        "size_px": 8,
+        "weight": "normal",
+        "description": "Serial number badge"
+      }
+    },
+    "spacing": {
+      "lcd_padding": 8,
+      "description": "Padding inside LCD panel for HalftoneMouth"
+    },
+    "timing": {
+      "mouth_fps": 10,
+      "knob_fps": 60,
+      "description": "Update rates (mouth stutter is intentional)"
+    },
+    "layout": {
+      "window": {
+        "width": 400,
+        "height": 600
+      },
+      "lcd_panel": {
+        "x": 24,
+        "y": 60,
+        "width": 352,
+        "height": 150
+      },
+      "halftone_mouth": {
+        "x": 32,
+        "y": 68,
+        "width": 336,
+        "height": 134
+      },
+      "title": {
+        "x": 0,
+        "y": 24,
+        "width": 400,
+        "height": 20
+      },
+      "status_led": {
+        "x": 24,
+        "y": 20,
+        "diameter": 12
+      },
+      "led_label": {
+        "x": 44,
+        "y": 14,
+        "width": 120,
+        "height": 24
+      },
+      "morph_knob": {
+        "x": 90,
+        "y": 250,
+        "size": 72
+      },
+      "intensity_knob": {
+        "x": 238,
+        "y": 250,
+        "size": 72
+      },
+      "mix_knob": {
+        "x": 164,
+        "y": 400,
+        "size": 72
+      },
+      "auto_button": {
+        "x": 164,
+        "y": 220,
+        "width": 72,
+        "height": 22
+      },
+      "danger_button": {
+        "x": 260,
+        "y": 220,
+        "width": 90,
+        "height": 22
+      },
+      "pair_badge": {
+        "x": 164,
+        "y": 245,
+        "width": 72,
+        "height": 14
+      },
+      "serial_number": {
+        "x": 0,
+        "y": 560,
+        "width": 400,
+        "height": 12
+      }
+    }
+  }
+}

@@ -258,7 +258,28 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             channelData,
             tempOutputBuffer.data(),
             numSamples,
-            [this, freeze](float* magnitudes, float* phases, int numBins) {
+            [this, freeze, channel](float* magnitudes, float* phases, int numBins) {
+                // M6: AUTO mode - Analyze spectrum for pair suggestion (channel 0 only)
+                if (channel == 0)
+                {
+                    int suggested = analyzeBandEnergy(magnitudes, numBins, getSampleRate());
+
+                    // Hysteresis: require 4 consecutive frames before switching
+                    if (suggested == suggestedPair)
+                    {
+                        ++pairSuggestionCounter;
+                        if (pairSuggestionCounter >= 4)
+                        {
+                            suggestedPairStable = suggested;
+                        }
+                    }
+                    else
+                    {
+                        suggestedPair = suggested;
+                        pairSuggestionCounter = 0;
+                    }
+                }
+
                 // Freeze capture (captures/holds/crossfades spectrum)
                 freezeCapture.processSpectrum(magnitudes, workingMagnitudes.data(),
                                              numBins, freeze);
@@ -334,6 +355,86 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 channelData[i] = 0.0f;
         }
     }
+}
+
+//==============================================================================
+// M6: AUTO mode - Spectral analysis for pair suggestion
+int PluginProcessor::analyzeBandEnergy(const float* magnitudes, int numBins, double sampleRate)
+{
+    // Calculate frequency resolution
+    float binWidth = static_cast<float>(sampleRate) / STFTProcessor::FFT_SIZE;
+
+    // Define frequency bands (Hz)
+    const float SUB_CUTOFF = 80.0f;    // <80 Hz → SUB (pair 3)
+    const float LOW_CUTOFF = 150.0f;   // 80-150 Hz → LOW (pair 2)
+    const float BELL_CUTOFF = 300.0f;  // 150-300 Hz → BELL (pair 1)
+    // >300 Hz → VOWEL (pair 0)
+
+    // Calculate bin indices for band boundaries
+    int subBin = static_cast<int>(SUB_CUTOFF / binWidth);
+    int lowBin = static_cast<int>(LOW_CUTOFF / binWidth);
+    int bellBin = static_cast<int>(BELL_CUTOFF / binWidth);
+
+    // Clamp to valid range
+    subBin = std::min(subBin, numBins - 1);
+    lowBin = std::min(lowBin, numBins - 1);
+    bellBin = std::min(bellBin, numBins - 1);
+
+    // Compute energy in each band
+    float subEnergy = 0.0f;
+    float lowEnergy = 0.0f;
+    float bellEnergy = 0.0f;
+    float vowelEnergy = 0.0f;
+
+    for (int i = 0; i < numBins; ++i)
+    {
+        float mag = magnitudes[i];
+        float energy = mag * mag;  // Power
+
+        if (i < subBin)
+            subEnergy += energy;
+        else if (i < lowBin)
+            lowEnergy += energy;
+        else if (i < bellBin)
+            bellEnergy += energy;
+        else
+            vowelEnergy += energy;
+    }
+
+    // Normalize by band width (number of bins in each band)
+    int subBins = subBin;
+    int lowBins = lowBin - subBin;
+    int bellBins = bellBin - lowBin;
+    int vowelBins = numBins - bellBin;
+
+    if (subBins > 0) subEnergy /= subBins;
+    if (lowBins > 0) lowEnergy /= lowBins;
+    if (bellBins > 0) bellEnergy /= bellBins;
+    if (vowelBins > 0) vowelEnergy /= vowelBins;
+
+    // Find dominant band
+    float maxEnergy = subEnergy;
+    int dominant = 3;  // SUB
+
+    if (lowEnergy > maxEnergy)
+    {
+        maxEnergy = lowEnergy;
+        dominant = 2;  // LOW
+    }
+
+    if (bellEnergy > maxEnergy)
+    {
+        maxEnergy = bellEnergy;
+        dominant = 1;  // BELL
+    }
+
+    if (vowelEnergy > maxEnergy)
+    {
+        maxEnergy = vowelEnergy;
+        dominant = 0;  // VOWEL
+    }
+
+    return dominant;
 }
 
 //==============================================================================

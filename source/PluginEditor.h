@@ -8,6 +8,7 @@
 #include "ui/BeveledKnob.h"
 #include "ui/MuseToggleButton.h"
 #include "ui/StatusLED.h"
+#include "ui/HalftoneMouth.h"
 
 //==============================================================================
 class PluginEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -47,6 +48,7 @@ private:
     MuseToggleButton freezeButton;
     MuseToggleButton dangerButton;
     StatusLED statusLED;
+    HalftoneMouth halftoneMouth;
 
     // Inspector (dev tool)
     std::unique_ptr<melatonin::Inspector> inspector;

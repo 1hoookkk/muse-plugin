@@ -83,5 +83,11 @@ private:
     // M4: RMS level for UI (atomic communication)
     std::atomic<float> rmsLevelForUI { 0.0f };
 
+    // M6: AUTO mode (spectral analysis for pair suggestion)
+    int analyzeBandEnergy(const float* magnitudes, int numBins, double sampleRate);
+    int suggestedPair = 0;
+    int suggestedPairStable = 0;
+    int pairSuggestionCounter = 0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };

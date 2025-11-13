@@ -20,6 +20,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addAndMakeVisible(freezeButton);
     addAndMakeVisible(dangerButton);
     addAndMakeVisible(statusLED);
+    addAndMakeVisible(halftoneMouth);
 
     // Inspector (dev tool)
     addAndMakeVisible (inspectButton);
@@ -58,9 +59,15 @@ void PluginEditor::timerCallback()
     ++frameCounter;
 
     // M6: Every 6 frames (10 FPS), update mouth
-    // if (frameCounter % 6 == 0) {
-    //     // TODO: Update HalftoneMouth component
-    // }
+    if (frameCounter % 6 == 0)
+    {
+        // Read parameters for mouth animation
+        float morph = processorRef.getAPVTS().getRawParameterValue("morph")->load();
+        float intensity = processorRef.getAPVTS().getRawParameterValue("intensity")->load();
+
+        // Update mouth state (10 FPS - intentional stutter)
+        halftoneMouth.updateState(rmsLevel, morph, intensity);
+    }
 }
 
 void PluginEditor::paint (juce::Graphics& g)
@@ -265,6 +272,7 @@ void PluginEditor::resized()
     freezeButton.setBounds(tokens.getAutoButtonBounds());
     dangerButton.setBounds(tokens.getDangerButtonBounds());
     statusLED.setBounds(tokens.getStatusLEDBounds());
+    halftoneMouth.setBounds(tokens.getHalftoneMouthBounds());
 
     // Inspector button (bottom right, dev tool)
     auto area = getLocalBounds();
